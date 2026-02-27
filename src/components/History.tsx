@@ -36,7 +36,8 @@ export default function History() {
   const filteredSales = sales.filter(sale => 
     sale.item_type.toLowerCase().includes(search.toLowerCase()) ||
     (sale.item_name && sale.item_name.toLowerCase().includes(search.toLowerCase())) ||
-    sale.waiter.toLowerCase().includes(search.toLowerCase())
+    sale.waiter.toLowerCase().includes(search.toLowerCase()) ||
+    (sale.tag && sale.tag.toLowerCase().includes(search.toLowerCase()))
   );
 
   const togglePaidStatus = async (id: string, currentStatus: boolean) => {
@@ -104,6 +105,11 @@ export default function History() {
                     <p className="font-bold text-sm">
                       {sale.item_type === 'Drink' && sale.item_name ? `${sale.item_name} (x${sale.quantity})` : sale.item_type}
                     </p>
+                    {sale.tag && sale.tag !== 'Customer' && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-black text-white">
+                        {sale.tag}
+                      </span>
+                    )}
                     <button 
                       onClick={() => togglePaidStatus(sale.id, sale.is_paid)}
                       className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider transition-colors ${

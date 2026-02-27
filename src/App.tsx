@@ -17,14 +17,24 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Safety timeout: If auth doesn't respond in 5 seconds, stop loading
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Auth state check timed out');
+        setIsLoading(false);
+      }
+    }, 5000);
+
     // Check for Demo Mode bypass
     if (localStorage.getItem('demo_mode') === 'true') {
-      setRole('grounds_manager'); // Default to manager for demo
+      setRole('grounds_manager'); 
       setIsLoading(false);
+      clearTimeout(timeout);
       return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(timeout);
       if (user) {
         try {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -32,7 +42,6 @@ export default function App() {
             const userData = userDoc.data();
             const fetchedRole = userData.role as UserRole;
             
-            // Get the role the user INTENDED to log in as
             const intendedRole = localStorage.getItem('intended_role');
             
             if (intendedRole && intendedRole !== fetchedRole) {
@@ -55,12 +64,14 @@ export default function App() {
         setRole(null);
       }
       
-      // Only clear the intended role if we've successfully set a role or if we're logged out
       localStorage.removeItem('intended_role');
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const handleLogout = async () => {

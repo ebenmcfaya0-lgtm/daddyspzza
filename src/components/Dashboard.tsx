@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [price, setPrice] = useState('');
   const [waiter, setWaiter] = useState<string>('');
   const [isPaid, setIsPaid] = useState(true);
+  const [tag, setTag] = useState<'Customer' | 'Staff' | 'Boss'>('Customer');
   const [notification, setNotification] = useState<{ message: string; id: number } | null>(null);
   const prevInventoryRef = useRef<InventoryItem[]>([]);
 
@@ -141,6 +142,7 @@ export default function Dashboard() {
         price: finalPrice,
         waiter,
         is_paid: isPaid,
+        tag,
         timestamp: new Date()
       };
       const sales = JSON.parse(localStorage.getItem('demo_sales') || '[]');
@@ -163,6 +165,7 @@ export default function Dashboard() {
         price: finalPrice,
         waiter,
         is_paid: isPaid,
+        tag,
         timestamp: serverTimestamp()
       });
 
@@ -181,6 +184,8 @@ export default function Dashboard() {
         setPrice('');
         setSelectedDrink(null);
         setDrinkQuantity(1);
+        setTag('Customer');
+        setIsPaid(true);
       }, 1500);
     } catch (error) {
       console.error('Failed to record sale:', error);
@@ -395,6 +400,32 @@ export default function Dashboard() {
                     </div>
                   </div>
                 )}
+
+                {/* Waiter Selector */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Tag / Category</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['Customer', 'Staff', 'Boss'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => {
+                          setTag(t);
+                          if (t !== 'Customer') setIsPaid(false);
+                          else setIsPaid(true);
+                        }}
+                        className={`py-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
+                          tag === t 
+                          ? 'bg-black border-black text-white shadow-lg' 
+                          : 'bg-white border-black/5 text-black/60 hover:border-black/20'
+                        }`}
+                      >
+                        <User className="w-5 h-5" />
+                        <span className="text-[10px] font-bold uppercase">{t}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Waiter Selector */}
                 <div className="space-y-3">

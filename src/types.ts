@@ -21,6 +21,7 @@ export interface Sale {
   price: number;
   waiter: 'Velma' | 'Precious' | 'Mabel';
   is_paid: boolean;
+  tag?: 'Customer' | 'Staff' | 'Boss';
   timestamp: Date | string;
 }
 

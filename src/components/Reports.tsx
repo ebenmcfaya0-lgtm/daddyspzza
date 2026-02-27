@@ -6,12 +6,15 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   LineChart, Line, PieChart, Pie, Cell, Legend 
 } from 'recharts';
-import { Download, FileText, PieChart as PieIcon, BarChart3, TrendingUp, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Download, FileText, PieChart as PieIcon, BarChart3, TrendingUp, RefreshCw, AlertTriangle, User, Users } from 'lucide-react';
+import { ItemIcon } from './Dashboard';
 
 interface ReportData {
   hourlySales: { hour: string; total: number }[];
   waiterSales: { waiter: string; total: number; count: number }[];
+  categorySales: { category: string; total: number; count: number }[];
   paymentStatus: { status: string; total: number }[];
+  tagBreakdown: { tag: string; total: number }[];
 }
 
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6'];
@@ -56,6 +59,16 @@ export default function Reports() {
       });
       const waiterSales = Object.values(waiterMap) as any[];
 
+      // Process Category Sales
+      const categoryMap: any = {};
+      sales.forEach(s => {
+        const cat = s.item_type;
+        if (!categoryMap[cat]) categoryMap[cat] = { category: cat, total: 0, count: 0 };
+        categoryMap[cat].total += s.price;
+        categoryMap[cat].count += 1;
+      });
+      const categorySales = Object.values(categoryMap) as any[];
+
       // Process Payment Status
       const paidTotal = sales.reduce((acc, s) => acc + (s.is_paid ? s.price : 0), 0);
       const unpaidTotal = sales.reduce((acc, s) => acc + (s.is_paid ? 0 : s.price), 0);
@@ -64,10 +77,20 @@ export default function Reports() {
         { status: 'Unpaid', total: unpaidTotal }
       ];
 
+      // Process Tag Breakdown
+      const tagMap: any = {};
+      sales.forEach(s => {
+        const tag = s.tag || 'Customer';
+        tagMap[tag] = (tagMap[tag] || 0) + s.price;
+      });
+      const tagBreakdown = Object.entries(tagMap).map(([tag, total]) => ({ tag, total: total as number }));
+
       setData({
         hourlySales,
         waiterSales,
-        paymentStatus
+        categorySales,
+        paymentStatus,
+        tagBreakdown
       });
     } catch (error) {
       console.error('Failed to fetch report data:', error);
@@ -110,7 +133,7 @@ export default function Reports() {
         timestamp: doc.data().timestamp?.toDate() || new Date()
       } as any));
       
-      const headers = ['ID', 'Type', 'Item Name', 'Quantity', 'Price', 'Waiter', 'Status', 'Timestamp'];
+      const headers = ['ID', 'Type', 'Item Name', 'Quantity', 'Price', 'Waiter', 'Status', 'Tag', 'Timestamp'];
       const rows = sales.map((s: any) => [
         s.id,
         s.item_type,
@@ -119,6 +142,7 @@ export default function Reports() {
         s.price.toFixed(2),
         s.waiter,
         s.is_paid ? 'Paid' : 'Unpaid',
+        s.tag || 'Customer',
         s.timestamp.toLocaleString()
       ]);
 
@@ -160,6 +184,36 @@ export default function Reports() {
           <Download className="w-4 h-4" />
           <span>Export CSV</span>
         </button>
+      </div>
+
+      {/* Category Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {['Drink', 'Cocktail', 'Ice Cream'].map((type) => {
+          const catData = data?.categorySales.find(s => s.category === type);
+          return (
+            <motion.div 
+              key={type}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-[24px] p-6 border border-black/5 shadow-sm flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center">
+                  <ItemIcon type={type} className="w-5 h-5 text-black/60" />
+                </div>
+                <span className="text-[10px] font-bold text-black/20 uppercase tracking-widest">{type}</span>
+              </div>
+              <div>
+                <p className="text-2xl font-bold tracking-tight">
+                  GHS {catData?.total.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}
+                </p>
+                <p className="text-[10px] font-bold text-black/40 uppercase tracking-wider mt-1">
+                  {catData?.count || 0} items sold
+                </p>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Hourly Sales - Line Chart */}
@@ -208,7 +262,48 @@ export default function Reports() {
         </div>
       </motion.section>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Category Breakdown - Pie Chart */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center">
+              <PieIcon className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm uppercase tracking-wider text-black/40 leading-none mb-1">Category Breakdown</h3>
+              <p className="text-xs font-medium">Sales by Item Type</p>
+            </div>
+          </div>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data?.categorySales}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="total"
+                  nameKey="category"
+                >
+                  {data?.categorySales.map((_entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
+                />
+                <Legend verticalAlign="bottom" height={36}/>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.section>
+
         {/* Waiter Performance - Bar Chart */}
         <motion.section 
           initial={{ opacity: 0, y: 20 }}
@@ -290,7 +385,92 @@ export default function Reports() {
             </ResponsiveContainer>
           </div>
         </motion.section>
+
+        {/* Tag Breakdown - Pie Chart */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center">
+              <User className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm uppercase tracking-wider text-black/40 leading-none mb-1">Consumption Tag</h3>
+              <p className="text-xs font-medium">Internal vs Customer Sales</p>
+            </div>
+          </div>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data?.tagBreakdown}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="total"
+                  nameKey="tag"
+                >
+                  {data?.tagBreakdown.map((_entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
+                />
+                <Legend verticalAlign="bottom" height={36}/>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.section>
       </div>
+
+      {/* Detailed Waitress Table */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-[32px] border border-black/5 shadow-sm overflow-hidden"
+      >
+        <div className="p-6 border-b border-black/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <Users className="w-5 h-5 text-blue-600" />
+            </div>
+            <h3 className="font-bold text-sm uppercase tracking-wider text-black/40">Waitress Performance Table</h3>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-black/5">
+                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-black/40">Waitress</th>
+                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-black/40">Orders</th>
+                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-black/40 text-right">Total Revenue</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {data?.waiterSales.map((w) => (
+                <tr key={w.waiter} className="hover:bg-black/[0.02] transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-bold">
+                        {w.waiter.charAt(0)}
+                      </div>
+                      <span className="font-bold text-sm">{w.waiter}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium text-black/60">{w.count} items</td>
+                  <td className="px-6 py-4 text-sm font-bold text-right">GHS {w.total.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </motion.section>
 
       {/* Export Summary Card */}
       <div className="grid grid-cols-1 gap-4">
