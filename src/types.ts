@@ -1,0 +1,36 @@
+export type UserRole = 'grounds_manager' | 'inventory_keeper' | 'administrator';
+
+export interface Waitress {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface InventoryItem {
+  id: string | number;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+export interface Sale {
+  id: string | number;
+  item_type: 'Drink' | 'Cocktail' | 'Ice Cream';
+  item_name?: string;
+  quantity?: number;
+  price: number;
+  waiter: 'Velma' | 'Precious' | 'Mabel';
+  is_paid: boolean;
+  timestamp: Date | string;
+}
+
+export interface Stats {
+  total: number;
+  unpaid: number;
+  byItem: {
+    item_type: string;
+    total: number;
+    count: number;
+  }[];
+  recent: Sale[];
+}
