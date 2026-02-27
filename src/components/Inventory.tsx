@@ -151,9 +151,9 @@ export default function Inventory() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-50 p-8 max-w-md mx-auto"
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-50 p-6 max-w-md mx-auto max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold tracking-tight">
                   {editingItem ? 'Edit Item' : 'Add New Drink'}
                 </h2>

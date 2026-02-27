@@ -152,7 +152,12 @@ export default function Dashboard() {
       setTimeout(() => {
         setSuccess(false);
         setIsFormOpen(false);
-        window.location.reload();
+        // Reset form
+        setPrice('');
+        setSelectedDrink(null);
+        setDrinkQuantity(1);
+        setTag('Customer');
+        setIsPaid(true);
       }, 1000);
       return;
     }
@@ -305,9 +310,9 @@ export default function Dashboard() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-50 p-8 max-w-md mx-auto"
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-50 p-6 max-w-md mx-auto max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold tracking-tight">Record Sale</h2>
                 <button 
                   onClick={() => setIsFormOpen(false)}
@@ -317,9 +322,9 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <form onSubmit={handleRecordSale} className="space-y-8">
+              <form onSubmit={handleRecordSale} className="space-y-6">
                 {/* Item Type Selector */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Select Item</label>
                   <div className="grid grid-cols-3 gap-2">
                     {ITEM_TYPES.map((type) => (
@@ -327,13 +332,13 @@ export default function Dashboard() {
                         key={type}
                         type="button"
                         onClick={() => setItemType(type)}
-                        className={`py-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
+                        className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${
                           itemType === type 
                           ? 'bg-black border-black text-white shadow-lg' 
                           : 'bg-white border-black/5 text-black/60 hover:border-black/20'
                         }`}
                       >
-                        <ItemIcon type={type} className="w-5 h-5" />
+                        <ItemIcon type={type} className="w-4 h-4" />
                         <span className="text-[10px] font-bold uppercase">{type}</span>
                       </button>
                     ))}
@@ -342,49 +347,49 @@ export default function Dashboard() {
 
                 {/* Price or Drink Selection */}
                 {itemType === 'Drink' ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Select Drink & Quantity</label>
                     <div 
                       onClick={() => setIsDrinkModalOpen(true)}
-                      className="w-full bg-[#F5F5F5] rounded-2xl p-6 flex items-center justify-between cursor-pointer hover:bg-[#EEEEEE] transition-all"
+                      className="w-full bg-[#F5F5F5] rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-[#EEEEEE] transition-all"
                     >
                       <div>
-                        <p className="font-bold text-lg">{selectedDrink ? selectedDrink.name : 'Choose a drink...'}</p>
+                        <p className="font-bold text-base">{selectedDrink ? selectedDrink.name : 'Choose a drink...'}</p>
                         {selectedDrink && (
-                          <p className="text-sm text-black/40 font-medium">GHS {selectedDrink.price.toFixed(2)} each</p>
+                          <p className="text-xs text-black/40 font-medium">GHS {selectedDrink.price.toFixed(2)} each</p>
                         )}
                       </div>
-                      <ChevronRight className="w-6 h-6 text-black/20" />
+                      <ChevronRight className="w-5 h-5 text-black/20" />
                     </div>
 
                     {selectedDrink && (
-                      <div className="flex items-center justify-between bg-black text-white p-6 rounded-2xl">
-                        <div className="flex items-center gap-6">
+                      <div className="flex items-center justify-between bg-black text-white p-4 rounded-2xl">
+                        <div className="flex items-center gap-4">
                           <button 
                             type="button"
                             onClick={() => setDrinkQuantity(Math.max(1, drinkQuantity - 1))}
-                            className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10"
+                            className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10"
                           >
-                            <Minus className="w-5 h-5" />
+                            <Minus className="w-4 h-4" />
                           </button>
-                          <span className="text-2xl font-bold w-8 text-center">{drinkQuantity}</span>
+                          <span className="text-xl font-bold w-6 text-center">{drinkQuantity}</span>
                           <button 
                             type="button"
                             onClick={() => setDrinkQuantity(drinkQuantity + 1)}
-                            className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10"
+                            className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10"
                           >
-                            <Plus className="w-5 h-5" />
+                            <Plus className="w-4 h-4" />
                           </button>
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Total Price</p>
-                          <p className="text-xl font-bold">GHS {(selectedDrink.price * drinkQuantity).toFixed(2)}</p>
+                          <p className="text-lg font-bold">GHS {(selectedDrink.price * drinkQuantity).toFixed(2)}</p>
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Price (GHS)</label>
                     <div className="relative">
                       <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-black/40">GHS</span>
@@ -394,15 +399,15 @@ export default function Dashboard() {
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                         placeholder="0.00"
-                        className="w-full bg-[#F5F5F5] border-none rounded-2xl py-6 pl-16 pr-6 text-2xl font-bold focus:ring-2 focus:ring-black transition-all"
+                        className="w-full bg-[#F5F5F5] border-none rounded-2xl py-4 pl-16 pr-6 text-xl font-bold focus:ring-2 focus:ring-black transition-all"
                         required
                       />
                     </div>
                   </div>
                 )}
 
-                {/* Waiter Selector */}
-                <div className="space-y-3">
+                {/* Tag Selector */}
+                <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Tag / Category</label>
                   <div className="grid grid-cols-3 gap-2">
                     {(['Customer', 'Staff', 'Boss'] as const).map((t) => (
@@ -414,13 +419,13 @@ export default function Dashboard() {
                           if (t !== 'Customer') setIsPaid(false);
                           else setIsPaid(true);
                         }}
-                        className={`py-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
+                        className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${
                           tag === t 
                           ? 'bg-black border-black text-white shadow-lg' 
                           : 'bg-white border-black/5 text-black/60 hover:border-black/20'
                         }`}
                       >
-                        <User className="w-5 h-5" />
+                        <User className="w-4 h-4" />
                         <span className="text-[10px] font-bold uppercase">{t}</span>
                       </button>
                     ))}
@@ -428,7 +433,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Waiter Selector */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Served By</label>
                   <div className="grid grid-cols-3 gap-2">
                     {waitresses.map((w) => (
@@ -436,19 +441,16 @@ export default function Dashboard() {
                         key={w.id}
                         type="button"
                         onClick={() => setWaiter(w.name)}
-                        className={`py-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
+                        className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${
                           waiter === w.name 
                           ? 'bg-black border-black text-white shadow-lg' 
                           : 'bg-white border-black/5 text-black/60 hover:border-black/20'
                         }`}
                       >
-                        <User className="w-5 h-5" />
+                        <User className="w-4 h-4" />
                         <span className="text-[10px] font-bold uppercase">{w.name}</span>
                       </button>
                     ))}
-                    {waitresses.length === 0 && (
-                      <p className="col-span-3 text-center text-xs text-black/40 italic py-2">No active waitresses found.</p>
-                    )}
                   </div>
                 </div>
 

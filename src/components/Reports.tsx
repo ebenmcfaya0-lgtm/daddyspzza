@@ -187,7 +187,7 @@ export default function Reports() {
       </div>
 
       {/* Category Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {['Drink', 'Cocktail', 'Ice Cream'].map((type) => {
           const catData = data?.categorySales.find(s => s.category === type);
           return (
@@ -195,20 +195,20 @@ export default function Reports() {
               key={type}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[24px] p-6 border border-black/5 shadow-sm flex flex-col justify-between"
+              className="bg-white rounded-[24px] p-4 border border-black/5 shadow-sm flex flex-col justify-between"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center">
-                  <ItemIcon type={type} className="w-5 h-5 text-black/60" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center">
+                  <ItemIcon type={type} className="w-4 h-4 text-black/60" />
                 </div>
-                <span className="text-[10px] font-bold text-black/20 uppercase tracking-widest">{type}</span>
+                <span className="text-[8px] font-bold text-black/20 uppercase tracking-widest">{type}</span>
               </div>
               <div>
-                <p className="text-2xl font-bold tracking-tight">
-                  GHS {catData?.total.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}
+                <p className="text-lg font-bold tracking-tight">
+                  GHS {catData?.total.toLocaleString(undefined, { minimumFractionDigits: 0 }) || '0'}
                 </p>
-                <p className="text-[10px] font-bold text-black/40 uppercase tracking-wider mt-1">
-                  {catData?.count || 0} items sold
+                <p className="text-[8px] font-bold text-black/40 uppercase tracking-wider mt-0.5">
+                  {catData?.count || 0} sold
                 </p>
               </div>
             </motion.div>

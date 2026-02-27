@@ -282,9 +282,9 @@ export default function AdminDashboard() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-[60] p-8 max-w-md mx-auto"
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-[60] p-6 max-w-md mx-auto max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold tracking-tight">Add Waitress</h2>
                 <button onClick={() => setIsWaitressModalOpen(false)} className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center">
                   <X className="w-5 h-5" />

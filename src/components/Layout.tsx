@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
-import { User, LayoutDashboard, History as HistoryIcon, Package, BarChart3, LogOut, Shield } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { User, LayoutDashboard, History as HistoryIcon, Package, BarChart3, LogOut, Shield, ArrowLeft } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 
 interface LayoutProps {
@@ -11,17 +11,29 @@ interface LayoutProps {
 
 export default function Layout({ children, role, onLogout }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const showBack = location.pathname !== '/';
 
   return (
     <div className="min-h-screen bg-[#F5F5F5] text-[#1A1A1A] font-sans pb-24">
       {/* Header */}
       <header className="bg-white border-b border-black/5 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
-            {role === 'grounds_manager' ? <LayoutDashboard className="text-white w-5 h-5" /> : 
-             role === 'administrator' ? <Shield className="text-white w-5 h-5" /> :
-             <Package className="text-white w-5 h-5" />}
-          </div>
+          {showBack ? (
+            <button 
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 bg-black/5 rounded-xl flex items-center justify-center hover:bg-black/10 transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          ) : (
+            <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
+              {role === 'grounds_manager' ? <LayoutDashboard className="text-white w-5 h-5" /> : 
+               role === 'administrator' ? <Shield className="text-white w-5 h-5" /> :
+               <Package className="text-white w-5 h-5" />}
+            </div>
+          )}
           <div>
             <h1 className="font-semibold text-lg leading-tight">Grounds Manager</h1>
             <p className="text-xs text-black/40 font-medium uppercase tracking-wider">
