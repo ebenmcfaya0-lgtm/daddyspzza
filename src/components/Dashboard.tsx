@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, limit, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Plus, History, TrendingUp, User, Coffee, IceCream, GlassWater, ArrowRight, CheckCircle2, X, Wallet, ChevronRight, Minus, Bell, Cake, MoreHorizontal } from 'lucide-react';
-import { Sale, Stats, InventoryItem, Waitress } from '../types';
+import { Sale, Stats, InventoryItem, Waitress, UserRole } from '../types';
 import { Link } from 'react-router-dom';
 
 export const ITEM_TYPES = ['Drink', 'Cocktail', 'Ice Cream', 'Teas', 'Cakes', 'Others'] as const;
@@ -27,7 +27,7 @@ export const ItemIcon = ({ type, className }: { type: string, className?: string
   }
 };
 
-export default function Dashboard() {
+export default function Dashboard({ role }: { role?: UserRole }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [waitresses, setWaitresses] = useState<Waitress[]>([]);
@@ -93,13 +93,9 @@ export default function Dashboard() {
       setInventory(items);
     });
 
-    // Fetch Stats & Recent Sales (Daily)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+    // Fetch Stats & Recent Sales (All time until manual reset)
     const qSales = query(
       collection(db, 'sales'), 
-      where('timestamp', '>=', today),
       orderBy('timestamp', 'desc')
     );
 

@@ -101,15 +101,15 @@ export default function App() {
         <Routes>
           {role === 'grounds_manager' ? (
             <>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/reports" element={<Reports />} />
+              <Route path="/" element={<Dashboard role={role} />} />
+              <Route path="/reports" element={<Reports role={role} />} />
               <Route path="/history" element={<History />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           ) : role === 'administrator' ? (
             <>
               <Route path="/" element={<AdminDashboard />} />
-              <Route path="/reports" element={<Reports />} />
+              <Route path="/reports" element={<Reports role={role} />} />
               <Route path="/history" element={<History />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="*" element={<Navigate to="/" replace />} />

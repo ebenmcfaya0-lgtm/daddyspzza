@@ -8,7 +8,7 @@ import {
   Clock, Tag, CreditCard, FileDown
 } from 'lucide-react';
 import { ItemIcon, ITEM_TYPES } from './Dashboard';
-import { Sale } from '../types';
+import { Sale, UserRole } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -34,7 +34,7 @@ interface ReportData {
 
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
-export default function Reports() {
+export default function Reports({ role }: { role?: UserRole }) {
   const [data, setData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -43,12 +43,8 @@ export default function Reports() {
 
   const fetchReportData = async () => {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       const q = query(
         collection(db, 'sales'), 
-        where('timestamp', '>=', today),
         orderBy('timestamp', 'asc')
       );
 
@@ -557,24 +553,26 @@ export default function Reports() {
           <div className="absolute -left-8 -top-8 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl" />
         </motion.div>
 
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4 }}
-          className="bg-red-50 border border-red-100 p-8 rounded-[32px] relative overflow-hidden"
-        >
-          <div className="relative z-10">
-            <h3 className="text-xl font-bold text-red-600 mb-2">Daily Reset</h3>
-            <p className="text-red-600/60 text-sm mb-6 max-w-[240px]">Clear all sales history and reset inventory quantities for a new day of tracking.</p>
-            <button 
-              onClick={() => setIsResetModalOpen(true)}
-              className="bg-red-500 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-red-600 transition-all"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Reset for New Day</span>
-            </button>
-          </div>
-        </motion.div>
+        {role === 'administrator' && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="bg-red-50 border border-red-100 p-8 rounded-[32px] relative overflow-hidden"
+          >
+            <div className="relative z-10">
+              <h3 className="text-xl font-bold text-red-600 mb-2">System Reset</h3>
+              <p className="text-red-600/60 text-sm mb-6 max-w-[240px]">Clear all sales history and reset inventory quantities. This action is permanent.</p>
+              <button 
+                onClick={() => setIsResetModalOpen(true)}
+                className="bg-red-500 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-red-600 transition-all"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Reset System Data</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Reset Confirmation Modal */}

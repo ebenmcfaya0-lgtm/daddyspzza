@@ -32,12 +32,8 @@ export default function History() {
     fetchWaitresses();
     fetchInventory();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     const q = query(
       collection(db, 'sales'), 
-      where('timestamp', '>=', today),
       orderBy('timestamp', 'desc')
     );
 
