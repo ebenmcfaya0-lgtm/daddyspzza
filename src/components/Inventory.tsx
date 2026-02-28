@@ -15,6 +15,8 @@ export default function Inventory() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [type, setType] = useState<InventoryItem['type']>('Drink');
+  const [activeTab, setActiveTab] = useState<InventoryItem['type']>('Drink');
 
   useEffect(() => {
     const q = query(collection(db, 'inventory'), orderBy('name', 'asc'));
@@ -34,7 +36,8 @@ export default function Inventory() {
     const itemData = {
       name,
       price: Number(price),
-      quantity: Number(quantity)
+      quantity: Number(quantity),
+      type
     };
 
     try {
@@ -59,24 +62,42 @@ export default function Inventory() {
     setName(item.name);
     setPrice(item.price.toString());
     setQuantity(item.quantity.toString());
+    setType(item.type || 'Drink');
     setIsFormOpen(true);
   };
 
   const filteredItems = items.filter(item => 
+    (item.type === activeTab || (!item.type && activeTab === 'Drink')) &&
     item.name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Drink Inventory</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Inventory Management</h2>
         
+        <div className="flex gap-2 p-1 bg-black/5 rounded-2xl overflow-x-auto no-scrollbar">
+          {(['Drink', 'Cocktail', 'Ice Cream', 'Teas', 'Cakes', 'Others'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-none px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${
+                activeTab === tab 
+                ? 'bg-white text-black shadow-sm' 
+                : 'text-black/40 hover:text-black/60'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
             <input 
               type="text"
-              placeholder="Search drinks..."
+              placeholder={`Search ${activeTab.toLowerCase()}...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-white border border-black/5 rounded-2xl py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-black transition-all"
@@ -155,7 +176,7 @@ export default function Inventory() {
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold tracking-tight">
-                  {editingItem ? 'Edit Item' : 'Add New Drink'}
+                  {editingItem ? 'Edit Item' : `Add New ${activeTab}`}
                 </h2>
                 <button 
                   onClick={() => setIsFormOpen(false)}
@@ -167,12 +188,32 @@ export default function Inventory() {
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Drink Name</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Item Type</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['Drink', 'Cocktail', 'Ice Cream', 'Teas', 'Cakes', 'Others'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setType(t)}
+                        className={`py-3 rounded-2xl border text-[10px] font-bold uppercase transition-all ${
+                          type === t 
+                          ? 'bg-black border-black text-white shadow-lg' 
+                          : 'bg-white border-black/5 text-black/60 hover:border-black/20'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Item Name</label>
                   <input 
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Coca Cola"
+                    placeholder={`e.g. ${type === 'Drink' ? 'Coca Cola' : type === 'Cocktail' ? 'Mojito' : 'Vanilla Scoop'}`}
                     className="w-full bg-[#F5F5F5] border-none rounded-2xl py-4 px-6 font-bold focus:ring-2 focus:ring-black transition-all"
                     required
                   />

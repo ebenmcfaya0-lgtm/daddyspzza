@@ -11,15 +11,16 @@ export interface InventoryItem {
   name: string;
   price: number;
   quantity: number;
+  type: 'Drink' | 'Cocktail' | 'Ice Cream' | 'Teas' | 'Cakes' | 'Others';
 }
 
 export interface Sale {
   id: string | number;
-  item_type: 'Drink' | 'Cocktail' | 'Ice Cream';
+  item_type: 'Drink' | 'Cocktail' | 'Ice Cream' | 'Teas' | 'Cakes' | 'Others';
   item_name?: string;
   quantity?: number;
   price: number;
-  waiter: 'Velma' | 'Precious' | 'Mabel';
+  waiter: string;
   is_paid: boolean;
   tag?: 'Customer' | 'Staff' | 'Boss';
   timestamp: Date | string;

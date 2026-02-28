@@ -1,17 +1,37 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Sale } from '../types';
+import { Sale, Waitress, InventoryItem } from '../types';
 import { ItemIcon } from './Dashboard';
-import { Search, Filter, Trash2, CheckCircle2, XCircle } from 'lucide-react';
+import { Search, Filter, Trash2, CheckCircle2, XCircle, Edit2, Save, X } from 'lucide-react';
 
 export default function History() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [search, setSearch] = useState('');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Sale>>({});
+  const [waitresses, setWaitresses] = useState<Waitress[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
 
   useEffect(() => {
+    // Fetch Waitresses
+    const fetchWaitresses = async () => {
+      const q = query(collection(db, 'waitresses'), where('active', '==', true));
+      const snapshot = await getDocs(q);
+      setWaitresses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Waitress)));
+    };
+
+    // Fetch Inventory Items
+    const fetchInventory = async () => {
+      const snapshot = await getDocs(collection(db, 'inventory'));
+      setInventoryItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InventoryItem)));
+    };
+
+    fetchWaitresses();
+    fetchInventory();
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -57,6 +77,33 @@ export default function History() {
       setIsDeleting(null);
     } catch (error) {
       console.error('Failed to delete sale:', error);
+    }
+  };
+
+  const startEditing = (sale: Sale) => {
+    setEditingSale(sale);
+    setEditForm({
+      item_name: sale.item_name,
+      quantity: sale.quantity,
+      price: sale.price,
+      waiter: sale.waiter,
+      tag: sale.tag,
+      is_paid: sale.is_paid
+    });
+  };
+
+  const handleUpdateSale = async () => {
+    if (!editingSale) return;
+    try {
+      const saleRef = doc(db, 'sales', editingSale.id as string);
+      await updateDoc(saleRef, {
+        ...editForm,
+        price: Number(editForm.price),
+        quantity: Number(editForm.quantity)
+      });
+      setEditingSale(null);
+    } catch (error) {
+      console.error('Failed to update sale:', error);
     }
   };
 
@@ -132,17 +179,162 @@ export default function History() {
                     {new Date(sale.timestamp).toLocaleDateString()} {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                <button 
-                  onClick={() => setIsDeleting(sale.id)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-black/10 hover:text-red-500 hover:bg-red-50 transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => startEditing(sale)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-black/10 hover:text-blue-500 hover:bg-blue-50 transition-all"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => setIsDeleting(sale.id as string)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-black/10 hover:text-red-500 hover:bg-red-50 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))
         )}
       </div>
+
+      {/* Edit Sale Modal */}
+      <AnimatePresence>
+        {editingSale && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingSale(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[400px] bg-white rounded-[32px] p-8 z-[70] shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold">Edit Transaction</h3>
+                <button onClick={() => setEditingSale(null)} className="text-black/20 hover:text-black">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-1.5 block">Item Name</label>
+                  <select 
+                    value={editForm.item_name || ''}
+                    onChange={(e) => {
+                      const selectedItem = inventoryItems.find(i => i.name === e.target.value);
+                      setEditForm({ 
+                        ...editForm, 
+                        item_name: e.target.value,
+                        item_type: selectedItem ? selectedItem.type : editForm.item_type,
+                        price: selectedItem ? selectedItem.price * (editForm.quantity || 1) : editForm.price
+                      });
+                    }}
+                    className="w-full bg-[#F5F5F5] border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-black transition-all appearance-none"
+                  >
+                    <option value="">Select Item</option>
+                    {inventoryItems.map(item => (
+                      <option key={item.id} value={item.name}>{item.name} ({item.type})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-1.5 block">Quantity</label>
+                    <input 
+                      type="number"
+                      value={editForm.quantity || 0}
+                      onChange={(e) => {
+                        const qty = Number(e.target.value);
+                        const selectedItem = inventoryItems.find(i => i.name === editForm.item_name);
+                        setEditForm({ 
+                          ...editForm, 
+                          quantity: qty,
+                          price: selectedItem ? selectedItem.price * qty : editForm.price
+                        });
+                      }}
+                      className="w-full bg-[#F5F5F5] border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-black transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-1.5 block">Price (GHS)</label>
+                    <input 
+                      type="number"
+                      value={editForm.price || 0}
+                      onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
+                      className="w-full bg-[#F5F5F5] border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-black transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-1.5 block">Waiter</label>
+                  <select 
+                    value={editForm.waiter || ''}
+                    onChange={(e) => setEditForm({ ...editForm, waiter: e.target.value })}
+                    className="w-full bg-[#F5F5F5] border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-black transition-all appearance-none"
+                  >
+                    <option value="">Select Waiter</option>
+                    {waitresses.map(w => (
+                      <option key={w.id} value={w.name}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-1.5 block">Consumption Tag</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['Customer', 'Staff', 'Boss'].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, tag: t as any })}
+                        className={`py-3 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${
+                          editForm.tag === t 
+                          ? 'bg-black text-white shadow-lg shadow-black/10' 
+                          : 'bg-[#F5F5F5] text-black/40 hover:bg-[#EEEEEE]'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-[#F5F5F5] rounded-2xl">
+                  <span className="text-xs font-bold text-black/40 uppercase tracking-wider">Payment Status</span>
+                  <button
+                    onClick={() => setEditForm({ ...editForm, is_paid: !editForm.is_paid })}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                      editForm.is_paid 
+                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                      : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                    }`}
+                  >
+                    {editForm.is_paid ? 'Paid' : 'Unpaid'}
+                  </button>
+                </div>
+
+                <button 
+                  onClick={handleUpdateSale}
+                  className="w-full py-4 bg-black text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-black/10 mt-4"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>

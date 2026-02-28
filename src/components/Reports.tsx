@@ -3,26 +3,43 @@ import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, orderBy, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, PieChart, Pie, Cell, Legend 
-} from 'recharts';
-import { Download, FileText, PieChart as PieIcon, BarChart3, TrendingUp, RefreshCw, AlertTriangle, User, Users } from 'lucide-react';
-import { ItemIcon } from './Dashboard';
+  Download, FileText, TrendingUp, 
+  RefreshCw, AlertTriangle, User, Users, ChevronDown, ChevronRight,
+  Clock, Tag, CreditCard, FileDown
+} from 'lucide-react';
+import { ItemIcon, ITEM_TYPES } from './Dashboard';
+import { Sale } from '../types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ReportData {
   hourlySales: { hour: string; total: number }[];
-  waiterSales: { waiter: string; total: number; count: number }[];
+  waiterSales: { 
+    waiter: string; 
+    total: number; 
+    count: number;
+    sales: Sale[];
+  }[];
   categorySales: { category: string; total: number; count: number }[];
+  itemSales: {
+    name: string;
+    type: string;
+    total: number;
+    count: number;
+    sales: Sale[];
+  }[];
   paymentStatus: { status: string; total: number }[];
   tagBreakdown: { tag: string; total: number }[];
 }
 
-const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6'];
+const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export default function Reports() {
   const [data, setData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'waiters' | 'items'>('waiters');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchReportData = async () => {
     try {
@@ -53,11 +70,29 @@ export default function Reports() {
       // Process Waiter Sales
       const waiterMap: any = {};
       sales.forEach(s => {
-        if (!waiterMap[s.waiter]) waiterMap[s.waiter] = { waiter: s.waiter, total: 0, count: 0 };
+        if (!waiterMap[s.waiter]) waiterMap[s.waiter] = { waiter: s.waiter, total: 0, count: 0, sales: [] };
         waiterMap[s.waiter].total += s.price;
         waiterMap[s.waiter].count += 1;
+        waiterMap[s.waiter].sales.push(s);
       });
       const waiterSales = Object.values(waiterMap) as any[];
+
+      // Process Item Sales
+      const itemMap: any = {};
+      sales.forEach(s => {
+        const key = `${s.item_type}-${s.item_name || 'Generic'}`;
+        if (!itemMap[key]) itemMap[key] = { 
+          name: s.item_name || s.item_type, 
+          type: s.item_type,
+          total: 0, 
+          count: 0, 
+          sales: [] 
+        };
+        itemMap[key].total += s.price;
+        itemMap[key].count += (s.quantity || 1);
+        itemMap[key].sales.push(s);
+      });
+      const itemSales = Object.values(itemMap) as any[];
 
       // Process Category Sales
       const categoryMap: any = {};
@@ -89,6 +124,7 @@ export default function Reports() {
         hourlySales,
         waiterSales,
         categorySales,
+        itemSales,
         paymentStatus,
         tagBreakdown
       });
@@ -121,6 +157,104 @@ export default function Reports() {
       fetchReportData();
     } catch (error) {
       console.error('Reset failed:', error);
+    }
+  };
+
+  const exportToPDF = async () => {
+    if (!data) return;
+    try {
+      const doc = new jsPDF();
+      const dateStr = new Date().toLocaleString();
+      const fileName = `grounds_manager_report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      // Header
+      doc.setFontSize(20);
+      doc.text('Grounds Manager - Financial Report', 14, 22);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Export Date: ${dateStr}`, 14, 30);
+
+      // 1. Waiter Breakdown
+      doc.setFontSize(14);
+      doc.setTextColor(0);
+      doc.text('Waiter Performance Breakdown', 14, 45);
+      
+      const waiterRows = data.waiterSales.map(w => [
+        w.waiter,
+        w.count.toString(),
+        `GHS ${w.total.toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: 50,
+        head: [['Waiter Name', 'Transactions', 'Total Revenue']],
+        body: waiterRows,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 0, 0] },
+      });
+
+      // 2. Category Breakdown
+      const finalY = (doc as any).lastAutoTable.finalY + 15;
+      doc.setFontSize(14);
+      doc.text('Category Summary', 14, finalY);
+
+      const categoryRows = data.categorySales.map(c => [
+        c.category,
+        c.count.toString(),
+        `GHS ${c.total.toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Category', 'Items Sold', 'Total Revenue']],
+        body: categoryRows,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 0, 0] },
+      });
+
+      // 3. Item Breakdown
+      const itemY = (doc as any).lastAutoTable.finalY + 15;
+      doc.setFontSize(14);
+      doc.text('Item Sales Breakdown', 14, itemY);
+
+      const itemRows = data.itemSales
+        .sort((a, b) => b.total - a.total)
+        .map(i => [
+          i.name,
+          i.type,
+          i.count.toString(),
+          `GHS ${i.total.toFixed(2)}`
+        ]);
+
+      autoTable(doc, {
+        startY: itemY + 5,
+        head: [['Item Name', 'Category', 'Quantity Sold', 'Total Revenue']],
+        body: itemRows,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 0, 0] },
+      });
+
+      // Payment Summary
+      const payY = (doc as any).lastAutoTable.finalY + 15;
+      doc.setFontSize(14);
+      doc.text('Payment Summary', 14, payY);
+
+      const payRows = data.paymentStatus.map(p => [
+        p.status,
+        `GHS ${p.total.toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: payY + 5,
+        head: [['Status', 'Total Amount']],
+        body: payRows,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 0, 0] },
+      });
+
+      doc.save(fileName);
+    } catch (error) {
+      console.error('PDF Export failed:', error);
     }
   };
 
@@ -177,18 +311,27 @@ export default function Reports() {
     <div className="space-y-8 pb-12">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">Financial Reports</h2>
-        <button 
-          onClick={exportToCSV}
-          className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-black/10"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export CSV</span>
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={exportToPDF}
+            className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-black/10"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+          <button 
+            onClick={exportToCSV}
+            className="flex items-center gap-2 bg-white border border-black/5 text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-black/5 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Category Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {['Drink', 'Cocktail', 'Ice Cream'].map((type) => {
+        {ITEM_TYPES.map((type) => {
           const catData = data?.categorySales.find(s => s.category === type);
           return (
             <motion.div 
@@ -216,261 +359,171 @@ export default function Reports() {
         })}
       </div>
 
-      {/* Hourly Sales - Line Chart */}
-      <motion.section 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-emerald-600" />
-          </div>
-          <div>
-            <h3 className="font-bold text-sm uppercase tracking-wider text-black/40 leading-none mb-1">Sales Trend</h3>
-            <p className="text-xs font-medium">Last 24 Hours</p>
-          </div>
-        </div>
-        <div className="h-[250px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data?.hourlySales}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="hour" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fill: '#999' }}
-              />
-              <YAxis 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fill: '#999' }}
-              />
-              <Tooltip 
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="total" 
-                stroke="#10b981" 
-                strokeWidth={3} 
-                dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.section>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Category Breakdown - Pie Chart */}
-        <motion.section 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center">
-              <PieIcon className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm uppercase tracking-wider text-black/40 leading-none mb-1">Category Breakdown</h3>
-              <p className="text-xs font-medium">Sales by Item Type</p>
-            </div>
-          </div>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data?.categorySales}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="total"
-                  nameKey="category"
-                >
-                  {data?.categorySales.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
-                />
-                <Legend verticalAlign="bottom" height={36}/>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.section>
-
-        {/* Waiter Performance - Bar Chart */}
-        <motion.section 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm uppercase tracking-wider text-black/40 leading-none mb-1">Waiter Performance</h3>
-              <p className="text-xs font-medium">Total Revenue per Waiter</p>
-            </div>
-          </div>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data?.waiterSales}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="waiter" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 10, fill: '#999' }}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 10, fill: '#999' }}
-                />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
-                />
-                <Bar dataKey="total" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.section>
-
-        {/* Payment Status - Pie Chart */}
-        <motion.section 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center">
-              <PieIcon className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm uppercase tracking-wider text-black/40 leading-none mb-1">Collection Status</h3>
-              <p className="text-xs font-medium">Paid vs Unpaid Revenue</p>
-            </div>
-          </div>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data?.paymentStatus}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="total"
-                  nameKey="status"
-                >
-                  {data?.paymentStatus.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.status === 'Paid' ? '#10b981' : '#f59e0b'} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
-                />
-                <Legend verticalAlign="bottom" height={36}/>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.section>
-
-        {/* Tag Breakdown - Pie Chart */}
-        <motion.section 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="bg-white p-6 rounded-[32px] border border-black/5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center">
-              <User className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm uppercase tracking-wider text-black/40 leading-none mb-1">Consumption Tag</h3>
-              <p className="text-xs font-medium">Internal vs Customer Sales</p>
-            </div>
-          </div>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data?.tagBreakdown}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="total"
-                  nameKey="tag"
-                >
-                  {data?.tagBreakdown.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
-                />
-                <Legend verticalAlign="bottom" height={36}/>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.section>
-      </div>
-
-      {/* Detailed Waitress Table */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-[32px] border border-black/5 shadow-sm overflow-hidden"
-      >
-        <div className="p-6 border-b border-black/5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-600" />
-            </div>
-            <h3 className="font-bold text-sm uppercase tracking-wider text-black/40">Waitress Performance Table</h3>
+      {/* Detailed Breakdown Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 bg-black/5 p-1 rounded-2xl">
+            <button 
+              onClick={() => { setActiveTab('waiters'); setExpandedId(null); }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                activeTab === 'waiters' ? 'bg-white text-black shadow-sm' : 'text-black/40 hover:text-black/60'
+              }`}
+            >
+              By Waitress
+            </button>
+            <button 
+              onClick={() => { setActiveTab('items'); setExpandedId(null); }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                activeTab === 'items' ? 'bg-white text-black shadow-sm' : 'text-black/40 hover:text-black/60'
+              }`}
+            >
+              By Item
+            </button>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-black/5">
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-black/40">Waitress</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-black/40">Orders</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-black/40 text-right">Total Revenue</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-black/5">
-              {data?.waiterSales.map((w) => (
-                <tr key={w.waiter} className="hover:bg-black/[0.02] transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-bold">
-                        {w.waiter.charAt(0)}
-                      </div>
-                      <span className="font-bold text-sm">{w.waiter}</span>
+
+        <div className="space-y-3">
+          {activeTab === 'waiters' ? (
+            data?.waiterSales.map((w) => (
+              <div key={w.waiter} className="bg-white rounded-[24px] border border-black/5 overflow-hidden shadow-sm transition-all">
+                <button 
+                  onClick={() => setExpandedId(expandedId === w.waiter ? null : w.waiter)}
+                  className="w-full p-5 flex items-center justify-between hover:bg-black/[0.01] transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg">
+                      {w.waiter.charAt(0)}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-black/60">{w.count} items</td>
-                  <td className="px-6 py-4 text-sm font-bold text-right">GHS {w.total.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div className="text-left">
+                      <h4 className="font-bold text-base">{w.waiter}</h4>
+                      <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest">{w.count} Transactions</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <p className="font-bold text-base">GHS {w.total.toFixed(2)}</p>
+                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Total Revenue</p>
+                    </div>
+                    {expandedId === w.waiter ? <ChevronDown className="w-5 h-5 text-black/20" /> : <ChevronRight className="w-5 h-5 text-black/20" />}
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {expandedId === w.waiter && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t border-black/5 bg-black/[0.01]"
+                    >
+                      <div className="p-4 space-y-2">
+                        {w.sales.map((sale, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded-xl border border-black/5 flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-3">
+                              <ItemIcon type={sale.item_type} className="w-4 h-4 text-black/40" />
+                              <div>
+                                <p className="font-bold text-xs">{sale.item_name || sale.item_type} {sale.quantity && `(x${sale.quantity})`}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest ${
+                                    sale.is_paid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                                  }`}>
+                                    {sale.is_paid ? 'Paid' : 'Unpaid'}
+                                  </span>
+                                  {sale.tag && (
+                                    <span className="text-[8px] font-bold text-black/30 uppercase tracking-widest flex items-center gap-1">
+                                      <Tag className="w-2 h-2" />
+                                      {sale.tag}
+                                    </span>
+                                  )}
+                                  <span className="text-[8px] font-bold text-black/30 uppercase tracking-widest flex items-center gap-1">
+                                    <Clock className="w-2 h-2" />
+                                    {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="font-bold text-xs">GHS {sale.price.toFixed(2)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))
+          ) : (
+            data?.itemSales.sort((a, b) => b.total - a.total).map((item) => (
+              <div key={`${item.type}-${item.name}`} className="bg-white rounded-[24px] border border-black/5 overflow-hidden shadow-sm transition-all">
+                <button 
+                  onClick={() => setExpandedId(expandedId === `${item.type}-${item.name}` ? null : `${item.type}-${item.name}`)}
+                  className="w-full p-5 flex items-center justify-between hover:bg-black/[0.01] transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center">
+                      <ItemIcon type={item.type as any} className="w-6 h-6 text-black/60" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-bold text-base">{item.name}</h4>
+                      <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest">{item.type} • {item.count} Sold</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <p className="font-bold text-base">GHS {item.total.toFixed(2)}</p>
+                      <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Total Revenue</p>
+                    </div>
+                    {expandedId === `${item.type}-${item.name}` ? <ChevronDown className="w-5 h-5 text-black/20" /> : <ChevronRight className="w-5 h-5 text-black/20" />}
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {expandedId === `${item.type}-${item.name}` && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t border-black/5 bg-black/[0.01]"
+                    >
+                      <div className="p-4 space-y-2">
+                        {item.sales.map((sale, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded-xl border border-black/5 flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-bold">
+                                {sale.waiter.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="font-bold text-xs">Served by {sale.waiter} {sale.quantity && `(x${sale.quantity})`}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest ${
+                                    sale.is_paid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                                  }`}>
+                                    {sale.is_paid ? 'Paid' : 'Unpaid'}
+                                  </span>
+                                  {sale.tag && (
+                                    <span className="text-[8px] font-bold text-black/30 uppercase tracking-widest flex items-center gap-1">
+                                      <Tag className="w-2 h-2" />
+                                      {sale.tag}
+                                    </span>
+                                  )}
+                                  <span className="text-[8px] font-bold text-black/30 uppercase tracking-widest flex items-center gap-1">
+                                    <Clock className="w-2 h-2" />
+                                    {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="font-bold text-xs">GHS {sale.price.toFixed(2)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))
+          )}
         </div>
-      </motion.section>
+      </section>
 
       {/* Export Summary Card */}
       <div className="grid grid-cols-1 gap-4">
@@ -482,14 +535,23 @@ export default function Reports() {
         >
           <div className="relative z-10">
             <h3 className="text-xl font-bold mb-2">Need a full report?</h3>
-            <p className="text-white/60 text-sm mb-6 max-w-[240px]">Download all transactions in CSV format for detailed accounting and bookkeeping.</p>
-            <button 
-              onClick={exportToCSV}
-              className="bg-white text-black px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:scale-105 active:scale-95 transition-all"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Download Full CSV</span>
-            </button>
+            <p className="text-white/60 text-sm mb-6 max-w-[240px]">Download all transactions in PDF or CSV format for detailed accounting and bookkeeping.</p>
+            <div className="flex flex-wrap gap-3">
+              <button 
+                onClick={exportToPDF}
+                className="bg-white text-black px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:scale-105 active:scale-95 transition-all"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>Download PDF Report</span>
+              </button>
+              <button 
+                onClick={exportToCSV}
+                className="bg-white/10 text-white border border-white/10 px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-white/20 transition-all"
+              >
+                <FileText className="w-4 h-4" />
+                <span>CSV Export</span>
+              </button>
+            </div>
           </div>
           <div className="absolute -right-8 -bottom-8 w-48 h-48 bg-white/5 rounded-full blur-3xl" />
           <div className="absolute -left-8 -top-8 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl" />
