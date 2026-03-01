@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -7,6 +8,10 @@ import { ItemIcon } from './Dashboard';
 import { Search, Filter, Trash2, CheckCircle2, XCircle, Edit2, Save, X } from 'lucide-react';
 
 export default function History() {
+  const [searchParams] = useSearchParams();
+  const filterCategory = searchParams.get('category');
+  const filterStatus = searchParams.get('status');
+
   const [sales, setSales] = useState<Sale[]>([]);
   const [search, setSearch] = useState('');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -14,6 +19,12 @@ export default function History() {
   const [editForm, setEditForm] = useState<Partial<Sale>>({});
   const [waitresses, setWaitresses] = useState<Waitress[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+
+  useEffect(() => {
+    if (filterCategory) {
+      setSearch(filterCategory);
+    }
+  }, [filterCategory]);
 
   useEffect(() => {
     // Fetch Waitresses
@@ -49,12 +60,22 @@ export default function History() {
     return () => unsubscribe();
   }, []);
 
-  const filteredSales = sales.filter(sale => 
-    sale.item_type.toLowerCase().includes(search.toLowerCase()) ||
-    (sale.item_name && sale.item_name.toLowerCase().includes(search.toLowerCase())) ||
-    sale.waiter.toLowerCase().includes(search.toLowerCase()) ||
-    (sale.tag && sale.tag.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredSales = sales.filter(sale => {
+    const matchesSearch = 
+      sale.item_type.toLowerCase().includes(search.toLowerCase()) ||
+      (sale.item_name && sale.item_name.toLowerCase().includes(search.toLowerCase())) ||
+      sale.waiter.toLowerCase().includes(search.toLowerCase()) ||
+      (sale.tag && sale.tag.toLowerCase().includes(search.toLowerCase()));
+    
+    const matchesStatus = filterStatus ? (filterStatus === 'unpaid' ? !sale.is_paid : sale.is_paid) : true;
+    const matchesCategory = filterCategory ? (
+      filterCategory === 'Miscellaneous' 
+        ? ['Teas', 'Ice Cream', 'Cakes', 'Others'].includes(sale.item_type)
+        : sale.item_type === filterCategory
+    ) : true;
+
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
 
   const togglePaidStatus = async (id: string, currentStatus: boolean) => {
     try {

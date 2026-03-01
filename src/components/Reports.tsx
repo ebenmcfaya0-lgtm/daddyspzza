@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, orderBy, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -30,6 +31,7 @@ interface ReportData {
   }[];
   paymentStatus: { status: string; total: number }[];
   tagBreakdown: { tag: string; total: number }[];
+  miscellaneousTotal: number;
 }
 
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -116,13 +118,19 @@ export default function Reports({ role }: { role?: UserRole }) {
       });
       const tagBreakdown = Object.entries(tagMap).map(([tag, total]) => ({ tag, total: total as number }));
 
+      // Process Miscellaneous Total
+      const miscellaneousTotal = sales
+        .filter(s => ['Teas', 'Ice Cream', 'Cakes', 'Others'].includes(s.item_type))
+        .reduce((acc, s) => acc + s.price, 0);
+
       setData({
         hourlySales,
         waiterSales,
         categorySales,
         itemSales,
         paymentStatus,
-        tagBreakdown
+        tagBreakdown,
+        miscellaneousTotal
       });
     } catch (error) {
       console.error('Failed to fetch report data:', error);
@@ -161,19 +169,75 @@ export default function Reports({ role }: { role?: UserRole }) {
     try {
       const doc = new jsPDF();
       const dateStr = new Date().toLocaleString();
-      const fileName = `grounds_manager_report_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `grounds_manager_detailed_report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      // Brand Color
+      const primaryColor: [number, number, number] = [0, 0, 0]; // Black
+      const accentColor: [number, number, number] = [16, 185, 129]; // Emerald
 
       // Header
-      doc.setFontSize(20);
-      doc.text('Grounds Manager - Financial Report', 14, 22);
+      doc.setFillColor(0, 0, 0);
+      doc.rect(0, 0, 210, 40, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('GROUNDS MANAGER', 14, 20);
+      
       doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Export Date: ${dateStr}`, 14, 30);
+      doc.setFont('helvetica', 'normal');
+      doc.text('FINANCIAL PERFORMANCE REPORT', 14, 28);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(200, 200, 200);
+      doc.text(`Generated on: ${dateStr}`, 14, 34);
+
+      // Summary Box
+      doc.setFillColor(245, 245, 245);
+      doc.roundedRect(14, 45, 182, 30, 3, 3, 'F');
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      
+      // Column 1: Total Revenue
+      doc.text('TOTAL REVENUE', 20, 55);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      const totalRev = data.paymentStatus.reduce((acc, p) => acc + p.total, 0);
+      doc.text(`GHS ${totalRev.toFixed(2)}`, 20, 65);
+
+      // Column 2: Transactions
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('TRANSACTIONS', 65, 55);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      const totalCount = data.categorySales.reduce((acc, c) => acc + c.count, 0);
+      doc.text(totalCount.toString(), 65, 65);
+
+      // Column 3: Miscellaneous
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('MISCELLANEOUS', 110, 55);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`GHS ${data.miscellaneousTotal.toFixed(2)}`, 110, 65);
+
+      // Column 4: Unpaid
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(185, 28, 28); // Red for unpaid
+      doc.text('UNPAID TOTAL', 155, 55);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      const unpaid = data.paymentStatus.find(p => p.status === 'Unpaid')?.total || 0;
+      doc.text(`GHS ${unpaid.toFixed(2)}`, 155, 65);
 
       // 1. Waiter Breakdown
+      doc.setTextColor(0, 0, 0);
       doc.setFontSize(14);
-      doc.setTextColor(0);
-      doc.text('Waiter Performance Breakdown', 14, 45);
+      doc.text('Waiter Performance', 14, 90);
       
       const waiterRows = data.waiterSales.map(w => [
         w.waiter,
@@ -182,36 +246,72 @@ export default function Reports({ role }: { role?: UserRole }) {
       ]);
 
       autoTable(doc, {
-        startY: 50,
+        startY: 95,
         head: [['Waiter Name', 'Transactions', 'Total Revenue']],
         body: waiterRows,
-        theme: 'grid',
-        headStyles: { fillColor: [0, 0, 0] },
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, fontSize: 10 },
+        styles: { fontSize: 9 },
       });
 
-      // 2. Category Breakdown
-      const finalY = (doc as any).lastAutoTable.finalY + 15;
+      // 2. Category Summary
+      let finalY = (doc as any).lastAutoTable.finalY + 15;
       doc.setFontSize(14);
       doc.text('Category Summary', 14, finalY);
 
-      const categoryRows = data.categorySales.map(c => [
-        c.category,
-        c.count.toString(),
-        `GHS ${c.total.toFixed(2)}`
+      const categoryRows = data.categorySales
+        .filter(c => ['Drink', 'Cocktail'].includes(c.category))
+        .map(c => [
+          c.category,
+          c.count.toString(),
+          `GHS ${c.total.toFixed(2)}`
+        ]);
+      
+      // Add Miscellaneous row to category summary
+      categoryRows.push([
+        'Miscellaneous',
+        data.categorySales
+          .filter(c => ['Teas', 'Ice Cream', 'Cakes', 'Others'].includes(c.category))
+          .reduce((acc, c) => acc + c.count, 0).toString(),
+        `GHS ${data.miscellaneousTotal.toFixed(2)}`
       ]);
 
       autoTable(doc, {
         startY: finalY + 5,
         head: [['Category', 'Items Sold', 'Total Revenue']],
         body: categoryRows,
-        theme: 'grid',
-        headStyles: { fillColor: [0, 0, 0] },
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, fontSize: 10 },
+        styles: { fontSize: 9 },
       });
 
-      // 3. Item Breakdown
-      const itemY = (doc as any).lastAutoTable.finalY + 15;
+      // 3. Miscellaneous Breakdown
+      finalY = (doc as any).lastAutoTable.finalY + 15;
       doc.setFontSize(14);
-      doc.text('Item Sales Breakdown', 14, itemY);
+      doc.text('Miscellaneous Breakdown', 14, finalY);
+
+      const miscRows = data.categorySales
+        .filter(c => ['Teas', 'Ice Cream', 'Cakes', 'Others'].includes(c.category))
+        .map(c => [
+          c.category,
+          c.count.toString(),
+          `GHS ${c.total.toFixed(2)}`
+        ]);
+
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Sub-Category', 'Items Sold', 'Total Revenue']],
+        body: miscRows,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229], fontSize: 10 }, // Indigo-ish for misc
+        styles: { fontSize: 9 },
+      });
+
+      // 4. Item Breakdown
+      finalY = (doc as any).lastAutoTable.finalY + 15;
+      if (finalY > 240) { doc.addPage(); finalY = 20; }
+      doc.setFontSize(14);
+      doc.text('Item Sales Breakdown', 14, finalY);
 
       const itemRows = data.itemSales
         .sort((a, b) => b.total - a.total)
@@ -223,30 +323,76 @@ export default function Reports({ role }: { role?: UserRole }) {
         ]);
 
       autoTable(doc, {
-        startY: itemY + 5,
-        head: [['Item Name', 'Category', 'Quantity Sold', 'Total Revenue']],
+        startY: finalY + 5,
+        head: [['Item Name', 'Category', 'Quantity', 'Revenue']],
         body: itemRows,
-        theme: 'grid',
-        headStyles: { fillColor: [0, 0, 0] },
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, fontSize: 10 },
+        styles: { fontSize: 9 },
       });
 
-      // Payment Summary
-      const payY = (doc as any).lastAutoTable.finalY + 15;
-      doc.setFontSize(14);
-      doc.text('Payment Summary', 14, payY);
+      // 5. Detailed Transaction Log
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Detailed Transaction Log', 14, 20);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100);
+      doc.text('Complete list of all recorded sales for this period.', 14, 26);
 
-      const payRows = data.paymentStatus.map(p => [
-        p.status,
-        `GHS ${p.total.toFixed(2)}`
+      const allSales = data.waiterSales.flatMap(w => w.sales)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      const transactionRows = allSales.map(s => [
+        s.timestamp.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+        s.item_name || s.item_type,
+        s.item_type,
+        s.quantity?.toString() || '1',
+        s.waiter,
+        s.is_paid ? 'PAID' : 'UNPAID',
+        `GHS ${s.price.toFixed(2)}`
       ]);
 
       autoTable(doc, {
-        startY: payY + 5,
-        head: [['Status', 'Total Amount']],
-        body: payRows,
+        startY: 35,
+        head: [['Date/Time', 'Item', 'Category', 'Qty', 'Served By', 'Status', 'Amount']],
+        body: transactionRows,
         theme: 'grid',
-        headStyles: { fillColor: [0, 0, 0] },
+        headStyles: { fillColor: primaryColor, fontSize: 9 },
+        styles: { fontSize: 8 },
+        columnStyles: {
+          5: { fontStyle: 'bold' },
+          6: { halign: 'right', fontStyle: 'bold' }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 5) {
+            if (data.cell.raw === 'UNPAID') {
+              data.cell.styles.textColor = [185, 28, 28];
+            } else {
+              data.cell.styles.textColor = [5, 150, 105];
+            }
+          }
+        }
       });
+
+      // Footer on all pages
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(
+          `Grounds Manager Financial Report - Page ${i} of ${pageCount}`,
+          14,
+          doc.internal.pageSize.getHeight() - 10
+        );
+        doc.text(
+          'Confidential - For Internal Use Only',
+          doc.internal.pageSize.getWidth() - 60,
+          doc.internal.pageSize.getHeight() - 10
+        );
+      }
 
       doc.save(fileName);
     } catch (error) {
@@ -330,27 +476,28 @@ export default function Reports({ role }: { role?: UserRole }) {
         {ITEM_TYPES.map((type) => {
           const catData = data?.categorySales.find(s => s.category === type);
           return (
-            <motion.div 
-              key={type}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[24px] p-4 border border-black/5 shadow-sm flex flex-col justify-between"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center">
-                  <ItemIcon type={type} className="w-4 h-4 text-black/60" />
+            <Link key={type} to={`/history?category=${type}`}>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-[24px] p-4 border border-black/5 shadow-sm flex flex-col justify-between h-full hover:border-black/20 transition-all"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center">
+                    <ItemIcon type={type} className="w-4 h-4 text-black/60" />
+                  </div>
+                  <span className="text-[8px] font-bold text-black/20 uppercase tracking-widest">{type}</span>
                 </div>
-                <span className="text-[8px] font-bold text-black/20 uppercase tracking-widest">{type}</span>
-              </div>
-              <div>
-                <p className="text-lg font-bold tracking-tight">
-                  GHS {catData?.total.toLocaleString(undefined, { minimumFractionDigits: 0 }) || '0'}
-                </p>
-                <p className="text-[8px] font-bold text-black/40 uppercase tracking-wider mt-0.5">
-                  {catData?.count || 0} sold
-                </p>
-              </div>
-            </motion.div>
+                <div>
+                  <p className="text-lg font-bold tracking-tight">
+                    GHS {catData?.total.toLocaleString(undefined, { minimumFractionDigits: 0 }) || '0'}
+                  </p>
+                  <p className="text-[8px] font-bold text-black/40 uppercase tracking-wider mt-0.5">
+                    {catData?.count || 0} sold
+                  </p>
+                </div>
+              </motion.div>
+            </Link>
           );
         })}
       </div>

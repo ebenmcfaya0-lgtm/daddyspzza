@@ -322,7 +322,7 @@ export default function Dashboard({ role }: { role?: UserRole }) {
           </div>
 
           {/* Unpaid Total Card */}
-          <div className="bg-amber-50/50 rounded-2xl p-4 border border-amber-100 flex flex-col gap-1">
+          <Link to="/history?status=unpaid" className="bg-amber-50/50 rounded-2xl p-4 border border-amber-100 flex flex-col gap-1 hover:border-amber-300 transition-all">
             <div className="flex items-center gap-2">
               <History className="w-3 h-3 text-amber-600" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600/60">Unpaid Total</span>
@@ -330,17 +330,16 @@ export default function Dashboard({ role }: { role?: UserRole }) {
             <p className="text-xl font-bold text-amber-700">
               GHS {stats?.unpaid.toFixed(2) || '0.00'}
             </p>
-          </div>
+          </Link>
 
           {/* Miscellaneous Card */}
-          <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100 flex flex-col gap-1 col-span-2">
+          <Link to="/history?category=Miscellaneous" className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100 flex flex-col gap-1 col-span-2 hover:border-indigo-300 transition-all">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MoreHorizontal className="w-3 h-3 text-indigo-600" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600/60">Miscellaneous</span>
               </div>
               <div className="flex gap-1 opacity-20">
-                <GlassWater className="w-3 h-3" />
                 <Coffee className="w-3 h-3" />
                 <IceCream className="w-3 h-3" />
                 <Cake className="w-3 h-3" />
@@ -348,13 +347,13 @@ export default function Dashboard({ role }: { role?: UserRole }) {
             </div>
             <p className="text-xl font-bold text-indigo-700">
               GHS {stats?.byItem
-                .filter(s => ['Drink', 'Teas', 'Ice Cream', 'Cakes', 'Others'].includes(s.item_type))
+                .filter(s => ['Teas', 'Ice Cream', 'Cakes', 'Others'].includes(s.item_type))
                 .reduce((acc, s) => acc + s.total, 0).toFixed(2) || '0.00'}
             </p>
             <p className="text-[8px] font-medium text-indigo-600/40 uppercase tracking-widest">
-              Drinks, Teas, Ice Cream, Cakes & Others
+              Teas, Ice Cream, Cakes & Others
             </p>
-          </div>
+          </Link>
         </div>
       </motion.div>
 
@@ -367,18 +366,20 @@ export default function Dashboard({ role }: { role?: UserRole }) {
         <div className="space-y-6">
           {/* Main Categories */}
           <div className="grid grid-cols-1 gap-3">
-            {['Cocktail'].map((type) => {
+            {['Drink', 'Cocktail'].map((type) => {
               const catStats = stats?.byItem.find(s => s.item_type === type);
               return (
-                <div key={type} className="bg-white rounded-2xl p-5 border border-black/5 flex items-center gap-4 shadow-sm">
-                  <div className="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center">
-                    <ItemIcon type={type} className="w-6 h-6 text-black/60" />
+                <Link key={type} to={`/history?category=${type}`}>
+                  <div className="bg-white rounded-2xl p-5 border border-black/5 flex items-center gap-4 shadow-sm hover:border-black/20 transition-all">
+                    <div className="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center">
+                      <ItemIcon type={type} className="w-6 h-6 text-black/60" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest mb-0.5">{type}</p>
+                      <p className="text-lg font-bold">GHS {catStats?.total.toFixed(2) || '0.00'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest mb-0.5">{type}</p>
-                    <p className="text-lg font-bold">GHS {catStats?.total.toFixed(2) || '0.00'}</p>
-                  </div>
-                </div>
+                </Link>
               );
             })}
           </div>
@@ -387,18 +388,20 @@ export default function Dashboard({ role }: { role?: UserRole }) {
           <div className="space-y-3">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/20 ml-2">Miscellaneous Breakdown</h3>
             <div className="grid grid-cols-2 gap-3">
-              {['Drink', 'Teas', 'Ice Cream', 'Cakes', 'Others'].map((type) => {
+              {['Teas', 'Ice Cream', 'Cakes', 'Others'].map((type) => {
                 const catStats = stats?.byItem.find(s => s.item_type === type);
                 return (
-                  <div key={type} className="bg-white/50 rounded-2xl p-4 border border-black/5 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-black/5 flex items-center justify-center">
-                      <ItemIcon type={type} className="w-4 h-4 text-black/40" />
+                  <Link key={type} to={`/history?category=${type}`}>
+                    <div className="bg-white/50 rounded-2xl p-4 border border-black/5 flex items-center gap-3 hover:border-black/20 transition-all h-full">
+                      <div className="w-8 h-8 rounded-xl bg-black/5 flex items-center justify-center">
+                        <ItemIcon type={type} className="w-4 h-4 text-black/40" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-black/40 uppercase tracking-wider leading-tight">{type}</p>
+                        <p className="text-sm font-bold">GHS {catStats?.total.toFixed(2) || '0.00'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-black/40 uppercase tracking-wider leading-tight">{type}</p>
-                      <p className="text-sm font-bold">GHS {catStats?.total.toFixed(2) || '0.00'}</p>
-                    </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
